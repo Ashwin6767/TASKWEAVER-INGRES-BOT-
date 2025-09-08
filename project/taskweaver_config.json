@@ -1,0 +1,7 @@
+{
+  "llm.api_type": "google_genai", 
+  "llm.api_base": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
+  "llm.api_key": "AIzaSyCsrNSUdDAR1dN_BOEolT2_UMH33wIg5DU",
+  "llm.model": "gemini-2.5-flash",
+  "container_mode": false
+}

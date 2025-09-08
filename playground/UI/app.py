@@ -407,15 +407,29 @@ async def main(message: cl.Message):
     session_cwd_path = session.execution_cwd
 
     # First, try to answer with the groundwater plugin
-    groundwater_answer = answer_question(message.content)
-    if "Sorry" not in groundwater_answer and "Please specify" not in groundwater_answer:
-        await cl.Message(
-            author="GroundwaterPlugin",
-            content=groundwater_answer,
-        ).send()
-        return
+    try:
+        groundwater_answer = answer_question(message.content)
+        # Check if we got a meaningful response (not an error message)
+        if not any(phrase in groundwater_answer.lower() for phrase in [
+            "sorry", "please specify", "error", "couldn't find", "not available"
+        ]):
+            await cl.Message(
+                author="GroundwaterAI",
+                content=f"🌊 **Groundwater Analysis:**\n\n{groundwater_answer}",
+            ).send()
+            return
+        # If it's a partial match or has some data, still show it but continue to TaskWeaver
+        elif "found" in groundwater_answer.lower() and "records" in groundwater_answer.lower():
+            await cl.Message(
+                author="GroundwaterPlugin",
+                content=f"📊 {groundwater_answer}",
+            ).send()
+            # Continue to TaskWeaver for additional processing
+    except Exception as e:
+        print(f"Groundwater plugin error: {e}")
+        # Continue to TaskWeaver if plugin fails
 
-    # Otherwise, proceed with the default TaskWeaver LLM logic
+    # Proceed with the default TaskWeaver LLM logic
     async with cl.Step(name="", show_input=True) as root_step:
         response_round = await cl.make_async(session.send_message)(
             message.content,
