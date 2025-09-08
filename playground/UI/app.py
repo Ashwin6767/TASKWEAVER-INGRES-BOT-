@@ -4,8 +4,14 @@ import os
 import re
 import sys
 from typing import Any, Dict, List, Optional, Tuple, Union
-
 import requests
+
+
+# Set up repo_path and sys.path before any imports that depend on it
+repo_path = os.path.join(os.path.dirname(__file__), "../../")
+sys.path.append(repo_path)
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../project")))
+from plugins.groundwater.groundwater_plugin import answer_question
 
 # change current directory to the directory of this file for loading resources
 os.chdir(os.path.dirname(__file__))
@@ -22,13 +28,13 @@ except Exception:
         "`pip install chainlit` and then run `chainlit run app.py`",
     )
 
-repo_path = os.path.join(os.path.dirname(__file__), "../../")
-sys.path.append(repo_path)
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../project")))
 from taskweaver.app.app import TaskWeaverApp
 from taskweaver.memory.attachment import AttachmentType
 from taskweaver.memory.type_vars import RoleName
 from taskweaver.module.event_emitter import PostEventType, RoundEventType, SessionEventHandlerBase
 from taskweaver.session.session import Session
+
 
 project_path = os.path.join(repo_path, "project")
 app = TaskWeaverApp(app_dir=project_path, use_local_uri=True)
@@ -170,7 +176,7 @@ class ChainLitMessageUpdater(SessionEventHandlerBase):
     ):
         if type == PostEventType.post_start:
             self.reset_cur_step()
-            self.cur_step = cl.Step(name=extra["role"], show_input=True, root=False)
+            self.cur_step = cl.Step(name=extra["role"], show_input=True)
             cl.run_sync(self.cur_step.__aenter__())
         elif type == PostEventType.post_end:
             assert self.cur_step is not None
@@ -393,14 +399,24 @@ async def end():
     app_session_dict.pop(user_session_id)
 
 
+
 @cl.on_message
 async def main(message: cl.Message):
     user_session_id = cl.user_session.get("id")  # type: ignore
     session: Session = app_session_dict[user_session_id]  # type: ignore
     session_cwd_path = session.execution_cwd
 
-    # display loader before sending message
-    async with cl.Step(name="", show_input=True, root=True) as root_step:
+    # First, try to answer with the groundwater plugin
+    groundwater_answer = answer_question(message.content)
+    if "Sorry" not in groundwater_answer and "Please specify" not in groundwater_answer:
+        await cl.Message(
+            author="GroundwaterPlugin",
+            content=groundwater_answer,
+        ).send()
+        return
+
+    # Otherwise, proceed with the default TaskWeaver LLM logic
+    async with cl.Step(name="", show_input=True) as root_step:
         response_round = await cl.make_async(session.send_message)(
             message.content,
             files=[
